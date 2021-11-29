@@ -59,13 +59,15 @@ def main():
     else:
         soundExt = ".ogg"
     SOUNDS["die"] = pygame.mixer.Sound("assets/audio/die" + soundExt)
+    SOUNDS["point"] = pygame.mixer.Sound("assets/audio/point" + soundExt)
     SOUNDS["hit"] = pygame.mixer.Sound("assets/audio/hit" + soundExt)
     SOUNDS["swoosh"] = pygame.mixer.Sound("assets/audio/swoosh" + soundExt)
     SOUNDS["wing"] = pygame.mixer.Sound("assets/audio/wing" + soundExt)
     SOUNDS["theme"] = pygame.mixer.Sound("assets/audio/theme" + soundExt)
-    info = show_welcome_screen()
-    play_game(info)
-    # show_score()
+    while True:
+        info = show_welcome_screen()
+        info = play_game(info)
+        show_game_over(info)
 
 
 def show_welcome_screen():
@@ -122,6 +124,7 @@ def play_game(info):
     playerModel = cycle((0, 1, 2, 1))
     modelNumber = 0
     fpsCount = 0
+    score = 0
     playerX, playerY = 70, info['playerY']
     playerHeight = IMAGES['player'][modelNumber].get_height()
     player_angle = MAX_ROT
@@ -130,7 +133,7 @@ def play_game(info):
     pipes.append(get_pipe())
     pipes[0]['x'] = SCREEN_WIDTH / 2 + 200
     pipes[1]['x'] = SCREEN_WIDTH + 200
-
+    pipeRects =[]
     while True:
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -141,6 +144,8 @@ def play_game(info):
                     SOUNDS["wing"].play()
                     playerVelY = FLAP_ACC
                     player_angle = MAX_ROT
+        # onoo shalgah
+        score = check_score(score, playerX, pipes)
         # Hurdnii hayzgaariig dawaagui bol unah hurdatgaliin nem
         if playerVelY < MAX_VEL:
             playerVelY += gravity
@@ -156,22 +161,111 @@ def play_game(info):
         playerY += min(playerVelY, BASE_Y - playerY - playerHeight)
         # Animation heseg
         SCREEN.blit(IMAGES["background"], (0, 0))
-
+       
         for pipe in pipes:
             pipe['x'] -= SPEED
             upperRect = SCREEN.blit(IMAGES["pipe"][0], (int(pipe['x']), int(pipe['yUpper'])))
             lowerRect = SCREEN.blit(IMAGES["pipe"][1], (int(pipe['x']), int(pipe['yLower'])))
+            upperRect = upperRect.inflate(-7,-7)
+            lowerRect = lowerRect.inflate(-10, -10)
+            pipeRects.append(upperRect)
+            pipeRects.append(lowerRect)
+           
 
-        SCREEN.blit(IMAGES["base"], (-(baseX % BASE_MAX_SHIFT), BASE_Y))
+         #show score
+        show_score(score)
+        baseRect = SCREEN.blit(IMAGES["base"], (-(baseX % BASE_MAX_SHIFT), BASE_Y))
         playerSurface = pygame.transform.rotate(
             IMAGES["player"][modelNumber], angle)
-        SCREEN.blit(playerSurface, (playerX, playerY))
-
+        playerRect = SCREEN.blit(playerSurface, (playerX, playerY))
+        playerRect = playerRect.inflate(-9,-12)
+    
+        #check collision
+        if check_collision(playerRect, pipeRects) !=-1:
+            return {
+                'type'          : 'hit',
+                'playerX'       : playerX,
+                'playerY'       : playerY,
+                'playerVelY'    : playerVelY,
+                'modelNumber'   : modelNumber,
+                'angle'         : angle,
+                'pipes'         : pipes,
+                'baseX'         : baseX,
+                'score'         : score,
+                'playerHeight'  : playerHeight
+            }
+        if check_fall(playerRect, baseRect) == True:
+            return {
+                'type'          : 'fall',
+                'playerX'       : playerX,
+                'playerY'       : playerY,
+                'playerVelY'    : playerVelY,
+                'modelNumber'   : modelNumber,
+                'angle'         : angle,
+                'pipes'         : pipes,
+                'baseX'         : baseX,
+                'score'         : score,
+                'playerHeight'  : playerHeight
+            }    
+        pipeRects.clear()
         pygame.display.update()
         baseX += SPEED
         fpsCount += 1
         if fpsCount % 5 == 0:
             modelNumber = next(playerModel)
+        FPSCLOCK.tick(FPS)
+
+def show_game_over(info):
+    playerX         = info['playerX']
+    playerY         = info['playerY']
+    playerVelY      = info['playerVelY']
+    modelNumber     = info['modelNumber']
+    angle           = info['angle']
+    pipes           = info['pipes']
+    baseX           = info['baseX']
+    score           = info['score']
+    playerHeight    = info['playerHeight']
+    MIN_ROT         = -90
+    MAX_VEL         = 10
+    ROT_VEL         = 7
+    gravity         = 2
+    gameOverX = (SCREEN_WIDTH - IMAGES["gameover"].get_width()) / 2
+    ###duu gargah
+    SOUNDS['hit'].play()
+    if info['type'] == 'hit':
+        SOUNDS['die'].play()
+
+    ###towch darah
+    while True:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == KEYDOWN and event.key == K_SPACE:
+                return
+    ###unagaah
+        if playerVelY < MAX_VEL:
+            playerVelY += gravity
+        playerY += min(playerVelY, BASE_Y - playerY - playerHeight) 
+    ###ergeldeh
+        if info['type'] == 'hit':
+            if angle > MIN_ROT:
+                angle -= ROT_VEL;
+        
+    ### Animation heseg
+        SCREEN.blit(IMAGES["background"], (0, 0))
+
+        for pipe in pipes:
+            upperRect = SCREEN.blit(IMAGES["pipe"][0], (int(pipe['x']), int(pipe['yUpper'])))
+            lowerRect = SCREEN.blit(IMAGES["pipe"][1], (int(pipe['x']), int(pipe['yLower'])))
+        #show score
+        show_score(score)
+        baseRect = SCREEN.blit(IMAGES["base"], (-(baseX % BASE_MAX_SHIFT), BASE_Y))
+        playerSurface = pygame.transform.rotate(IMAGES["player"][modelNumber], angle)
+        playerRect = SCREEN.blit(playerSurface, (playerX, playerY))
+        SCREEN.blit(IMAGES["gameover"], (int(gameOverX), SCREEN_HEIGHT * 0.3))
+
+        pygame.display.update()
         FPSCLOCK.tick(FPS)
 
 
@@ -197,6 +291,33 @@ def get_pipe():
 
     return {'x': x, 'yLower': yLower, 'yUpper': yUpper}
 
+def check_score(score, playerX, pipes):
+    """onoo shalgadah punkts
+    """
+    playerMidX = int((playerX +IMAGES['player'][0].get_width()) /2)
+    pipeMidX = 0
+    for pipe in pipes:
+        pipeMidX = int((pipe['x'] + IMAGES['pipe'][0].get_width() ) /2)
+        if pipeMidX < playerMidX < pipeMidX +3:
+            SOUNDS["point"].play()
+            return score +1
+    return score
 
+def show_score(score):
+    scoreDigits = str(score)
+    width = 0
+    for digit in scoreDigits:
+        width +=IMAGES['numbers'][int(digit)].get_width()
+    offset = (SCREEN_WIDTH - width ) /2
+    
+    for digit in scoreDigits:
+        SCREEN.blit(IMAGES['numbers'][int(digit)], (int(offset), int(SCREEN_HEIGHT * 0.2)))
+        offset += IMAGES['numbers'][int(digit)].get_width()
+
+def check_fall(playerRect, baseRect):
+    return playerRect.colliderect(baseRect)
+
+def check_collision(playerRect, pipeRects):
+    return playerRect.collidelist(pipeRects)
 if __name__ == "__main__":
     main()
